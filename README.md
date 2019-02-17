@@ -42,7 +42,7 @@ It offers the opportunity to choose some options to adapt the tests to any desig
 
 Sample _asking-for-choices_ output:
 ```
-La macchina controlla con uno stato in più...
+La macchina controlla con uno stato in piÃ¹...
   ...l'errore di EM=0   [y/N]?
   ...l'errore di SCARTO [y/N]?
   ...l'overflow di NB   [y/N]?
@@ -72,12 +72,14 @@ wget https://gist.github.com/Microeinstein/${a}/archive/${b}.zip
 ```
 a=BLIFTest
 b=master
+rm -f ${b}.zip
 wget https://github.com/Microeinstein/${a}/archive/${b}.zip
 fld=${a}-${b}
-unzip ${fld}.zip
+unzip -o ${b}.zip
 mv ${fld}/* .
-rm ${fld}.zip ${fld}
+rm -rf ${b}.zip ${fld}
 chmod +x *.sh
+clear
 ./buildtest2019.sh
 ./bliftest.sh FSMD_final.blif test2019.simtest
 
