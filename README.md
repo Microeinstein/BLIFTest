@@ -72,12 +72,12 @@ wget https://gist.github.com/Microeinstein/${a}/archive/${b}.zip
 ```
 a=BLIFTest
 b=master
-rm -f ${b}.zip
+rm -f ${b}.zip*
 wget https://github.com/Microeinstein/${a}/archive/${b}.zip
 fld=${a}-${b}
 unzip -o ${b}.zip
 mv ${fld}/* .
-rm -rf ${b}.zip ${fld}
+rm -rf ${b}.zip* ${fld}
 chmod +x *.sh
 clear
 ./buildtest2019.sh
