@@ -35,27 +35,27 @@ Build and execute simulation tests for SIS projects.${esc0}
 "
 
 function printErr {
-    printf "${escR}$*${esc0}\n"
+	printf "${escR}$*${esc0}\n"
 }
 function printOk {
-    printf "${escG}$*${esc0}\n"
+	printf "${escG}$*${esc0}\n"
 }
 function printInfo {
-    printf "${escW}$*${esc0}\n"
+	printf "${escW}$*${esc0}\n"
 }
 function prevLine {
-    printf "\e[1F\e[2K"
+	printf "\e[1F\e[2K"
 }
 function printHelp {
-    printf "$helpText"
+	printf "$helpText"
 }
 function setStatus {
-    #prevLine
+	#prevLine
 	#echo "$*"
 	printf "\e[1F\e[2K%s\n" "$*"
 }
 function getProgress {
-    min="$1"
+	min="$1"
 	max="$2"
 	val="$3"
 	width=40
@@ -71,6 +71,16 @@ function getProgress {
 	done
 	hund=$(( $perc * 100 / $width ))
 	echo "$prog ($val/$max, $hund%)"
+}
+function textToArray { #Compatibility with older versions of bash
+	local f="$(cat $1)"
+	local a="$2"
+	local i=0
+	while IFS= read -r line; do
+		eval "${a}[$i]"=\$line
+		let i++
+	done <<< "$f"
+	#eval "less <<< \"\${$a[@]}\""
 }
 
 
@@ -136,11 +146,15 @@ if ! [ $buildMode ] && [ -f "$args" ] && ! [[ "$args" == *[=,]* ]]; then
 	do
 		case $l in
 			"0") base64 -d -w 0 <<< "$line" >> "$stdin" ;;
-			"1") mapfile -t expected <<< $(base64 -d -w 0 <<< "$line") ;;
-			"2") mapfile -t messages <<< $(base64 -d -w 0 <<< "$line") ;;
+			"1") textToArray - expected <<< "$(base64 -d -w 0 <<< $line)" ;;
+			"2") textToArray - messages <<< "$(base64 -d -w 0 <<< $line)" ;;
 		esac
 		let l++
 	done < "$args"
+	#less "$stdin"
+	#less <<< "${expected[@]}"
+	#rm -rf "$workdir"
+	#exit
 else
 	amount=0
 	tn=0
@@ -161,11 +175,10 @@ else
 		local test="${tests[$tn]}"
 		if [ -f "$test" ]; then
 			local l=0
-			while IFS='' read -r line
-			do
+			while IFS= read -r line; do
 				case $l in
 					"0")
-						in="$(base64 -d <<< "$line")"
+						in=$(base64 -d <<< "$line")
 						read -r line1 <<< "$in"
 						line1=$(sed -r 's/[^01]+//g' <<< "$line1" | sed 's/./& /g' | xargs)
 						local llen="${#line1}"
@@ -225,7 +238,10 @@ else
 		cat "${i}.msg" >> "$messagesf"
 	done &
 	wait
-	cd - > /dev/null
+	#cd - > /dev/null
+	#less "$expectedf"
+	#rm -rf "$workdir"
+	#exit
 	
 	if [ $buildMode ]; then
 		base64 -w 0 < "$stdin" > "$file"
@@ -239,20 +255,29 @@ else
 		printOk "Build successful."
 		exit 0
 	fi
-	readarray -t expected < "$expectedf"
-	readarray -t messages < "$messagesf"
+	textToArray "$expectedf" expected
+	textToArray "$messagesf" messages
 	rm "$expectedf" "$messagesf"
+fi
+
+if ! [ $buildMode ]; then
+	echo "quit" >> "$stdin"
 fi
 
 
 setStatus Executing SIS...
 stdout=$(sis -f "$stdin" -s -x 2>&1)
+siserr=$?
 rm -rf "$workdir"
-
+if [ $siserr -eq 139 ]; then # Segmentation fault...
+	printErr "SIS has gone in Segmentation Fault, sorry but nothing can be done... (I tried) :("
+	exit -1
+fi
 
 setStatus Searching for errors...
 err=$(egrep -o -a -m 1 'network has [0-9]+ inputs; [0-9]+ values were supplied.' <<< $stdout)
 err=$(sed -r 's/[a-z ]+?([0-9]+)[a-z ;]+?([0-9]+).+/in=\2, expected=\1/g' <<< $err)
+#' gedit syntax color bug
 
 if [ "${#err}" -gt "0" ]; then
 	printErr "Input mismatch: $err"
@@ -260,7 +285,7 @@ if [ "${#err}" -gt "0" ]; then
 fi
 
 setStatus Parsing output...
-stdout=$(egrep -o -a 'Outputs:.+' <<< $stdout | sed -r s/[^01]*//g | tr '\n' ',')
+stdout=$(egrep -o -a 'Outputs:.+' <<< "$stdout" | sed -r s/[^01]*//g | tr '\n' ',')
 stdout=${stdout%,*}
 
 prevLine
@@ -268,7 +293,7 @@ ok=0
 inout=0
 tn=0
 IFS=','
-read -ra results <<< $stdout
+read -ra results <<< "$stdout"
 for res in "${results[@]}"; do
 	exp="${expected[$inout]}"
 	msg="${messages[$inout]}"
